@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Police Screen</title>
+</head>
+<body>
+
+<h2>👮 Police Screen</h2>
+<video id="remoteVideo" autoplay playsinline muted width="400"></video>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+const socket = io("http://127.0.0.1:3000");
+socket.emit("register", "police");
+
+const peer = new RTCPeerConnection({
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+});
+
+const video = document.getElementById("remoteVideo");
+
+
+
+// receive video
+peer.ontrack = (event) => {
+  console.log("VIDEO RECEIVED");
+  video.srcObject = event.streams[0];
+  video.play();
+};
+
+// ICE
+peer.onicecandidate = (event) => {
+  if (event.candidate) {
+    socket.emit("ice-candidate", event.candidate);
+  }
+};
+
+// tell robot you're ready
+socket.on("connect", () => {
+  console.log("👮 Ready");
+  socket.emit("ready");
+});
+
+// receive offer
+socket.on("offer", async (offer) => {
+  console.log("📥 Offer received");
+
+  await peer.setRemoteDescription(offer);
+
+  const answer = await peer.createAnswer();
+  await peer.setLocalDescription(answer);
+
+  socket.emit("answer", answer);
+});
+
+// receive ICE
+socket.on("ice-candidate", async (candidate) => {
+  try {
+    await peer.addIceCandidate(candidate);
+  } catch (e) {
+    console.log("ICE error", e);
+  }
+});
+</script>
+
+</body>
+</html>
